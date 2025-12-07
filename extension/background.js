@@ -5,7 +5,29 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     handleGitHubLogin().then(sendResponse);
     return true; 
   }
+  if (request.action === 'checkToken') {
+    checkTokenExpiry().then(sendResponse);
+    return true;
+  }
 });
+
+async function checkTokenExpiry() {
+  const result = await chrome.storage.local.get(['github_token', 'token_timestamp']);
+  
+  if (!result.github_token) {
+    return { valid: false };
+  }
+  
+  const now = Date.now();
+  const weekInMs = 7 * 24 * 60 * 60 * 1000;
+  
+  if (result.token_timestamp && (now - result.token_timestamp) > weekInMs) {
+    await chrome.storage.local.remove(['github_token', 'github_user', 'token_timestamp']);
+    return { valid: false, expired: true };
+  }
+  
+  return { valid: true, token: result.github_token };
+}
 
 async function handleGitHubLogin() {
   try {
@@ -49,6 +71,12 @@ async function handleGitHubLogin() {
     });
     
     const userData = await userResponse.json();
+    
+    await chrome.storage.local.set({
+      github_token: tokenData.access_token,
+      github_user: userData,
+      token_timestamp: Date.now()
+    });
     
     return {
       success: true,

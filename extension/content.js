@@ -57,18 +57,24 @@
   }
 
   async function checkAuth() {
-    const result = await chrome.storage.local.get(['github_token']);
-    if (result.github_token) {
-      const isValid = await validateToken(result.github_token);
-      if (isValid) {
-        accessToken = result.github_token;
-        isLoggedIn = true;
-      } else {
-        await chrome.storage.local.remove(['github_token', 'github_user']);
-        accessToken = null;
-        isLoggedIn = false;
-      }
+    const tokenCheck = await chrome.runtime.sendMessage({ action: 'checkToken' });
+    
+    if (!tokenCheck.valid) {
+      accessToken = null;
+      isLoggedIn = false;
+      return false;
     }
+    
+    const isValid = await validateToken(tokenCheck.token);
+    if (isValid) {
+      accessToken = tokenCheck.token;
+      isLoggedIn = true;
+    } else {
+      await chrome.storage.local.remove(['github_token', 'github_user', 'token_timestamp']);
+      accessToken = null;
+      isLoggedIn = false;
+    }
+    
     return isLoggedIn;
   }
 
@@ -149,10 +155,6 @@
         accessToken = response.token;
         isLoggedIn = true;
         currentUserLogin = response.user.login;
-        await chrome.storage.local.set({
-          github_token: accessToken,
-          github_user: response.user
-        });
         
         updateAllButtons();
         showNotification('Authorized successfully! You can now manage your repositories.', 'success');
