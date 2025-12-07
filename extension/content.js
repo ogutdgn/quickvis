@@ -1,0 +1,435 @@
+(async function() {
+  let accessToken = null;
+  let isLoggedIn = false;
+  let currentUserLogin = null;
+  
+  const isRepoListPage = window.location.href.match(/github\.com\/[^\/]+\?tab=repositories/);
+  const isSingleRepoPage = window.location.pathname.match(/^\/[^\/]+\/[^\/]+$/);
+  
+  if (!isRepoListPage && !isSingleRepoPage) {
+    return;
+  }
+
+  async function getCurrentUser() {
+    const result = await chrome.storage.local.get(['github_user']);
+    if (result.github_user && result.github_user.login) {
+      currentUserLogin = result.github_user.login;
+      return currentUserLogin;
+    }
+    
+    if (accessToken) {
+      try {
+        const response = await fetch('https://api.github.com/user', {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Accept': 'application/vnd.github.v3+json'
+          }
+        });
+        if (response.ok) {
+          const userData = await response.json();
+          currentUserLogin = userData.login;
+          return currentUserLogin;
+        }
+      } catch (error) {}
+    }
+    
+    return null;
+  }
+
+  async function isOwnProfile() {
+    if (!currentUserLogin) {
+      await getCurrentUser();
+    }
+    
+    if (!currentUserLogin) {
+      return false;
+    }
+    
+    const urlMatch = window.location.pathname.match(/^\/([^\/]+)/);
+    if (!urlMatch || !urlMatch[1]) {
+      return false;
+    }
+    
+    const profileUsername = urlMatch[1];
+    const isOwn = profileUsername.toLowerCase() === currentUserLogin.toLowerCase();
+    
+    return isOwn;
+  }
+
+  async function checkAuth() {
+    const result = await chrome.storage.local.get(['github_token']);
+    if (result.github_token) {
+      const isValid = await validateToken(result.github_token);
+      if (isValid) {
+        accessToken = result.github_token;
+        isLoggedIn = true;
+      } else {
+        await chrome.storage.local.remove(['github_token', 'github_user']);
+        accessToken = null;
+        isLoggedIn = false;
+      }
+    }
+    return isLoggedIn;
+  }
+
+  async function validateToken(token) {
+    try {
+      const response = await fetch('https://api.github.com/user', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/vnd.github.v3+json'
+        }
+      });
+      
+      return response.ok;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  function createModal() {
+    const modalHTML = `
+      <div id="quickvis-modal" class="quickvis-modal">
+        <div class="quickvis-modal-content">
+          <div class="quickvis-modal-left">
+            <div class="quickvis-modal-icon">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z"/>
+                <path d="M16 9V7a4 4 0 00-8 0v2"/>
+              </svg>
+            </div>
+            <h2>Access Required</h2>
+          </div>
+          <div class="quickvis-modal-right">
+            <p>To change repository visibility, you need to grant QuickVis access to your GitHub account.</p>
+            <div class="quickvis-modal-actions">
+              <button id="quickvis-cancel" class="quickvis-btn quickvis-btn-secondary">Cancel</button>
+              <button id="quickvis-grant" class="quickvis-btn quickvis-btn-primary">Give Access</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+    
+    document.getElementById('quickvis-cancel').addEventListener('click', closeModal);
+    document.getElementById('quickvis-grant').addEventListener('click', handleGrantAccess);
+    
+    document.getElementById('quickvis-modal').addEventListener('click', (e) => {
+      if (e.target.id === 'quickvis-modal') {
+        closeModal();
+      }
+    });
+  }
+
+  function showModal() {
+    let modal = document.getElementById('quickvis-modal');
+    if (!modal) {
+      createModal();
+      modal = document.getElementById('quickvis-modal');
+    }
+    modal.style.display = 'flex';
+  }
+
+  function closeModal() {
+    const modal = document.getElementById('quickvis-modal');
+    if (modal) {
+      modal.style.display = 'none';
+    }
+  }
+
+  async function handleGrantAccess() {
+    closeModal();
+    
+    try {
+      const response = await chrome.runtime.sendMessage({ action: 'login' });
+      
+      if (response.success) {
+        accessToken = response.token;
+        isLoggedIn = true;
+        currentUserLogin = response.user.login;
+        await chrome.storage.local.set({
+          github_token: accessToken,
+          github_user: response.user
+        });
+        
+        updateAllButtons();
+        showNotification('Authorized successfully! You can now manage your repositories.', 'success');
+      } else {
+        showNotification('Authorization failed: ' + response.error, 'error');
+      }
+    } catch (error) {
+      showNotification('Authorization error: ' + error.message, 'error');
+    }
+  }
+
+  function showNotification(message, type = 'info') {
+    const existingNotif = document.getElementById('quickvis-notification');
+    if (existingNotif) {
+      existingNotif.remove();
+    }
+
+
+    const icons = {
+      success: '<svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>',
+      error: '<svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/></svg>',
+      info: '<svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/></svg>'
+    };
+
+    const notif = document.createElement('div');
+    notif.id = 'quickvis-notification';
+    notif.className = `quickvis-notification quickvis-notification-${type}`;
+    
+    notif.innerHTML = `
+      <div class="quickvis-notification-icon">
+        ${icons[type] || icons.info}
+      </div>
+      <div class="quickvis-notification-message">${message}</div>
+    `;
+    
+    document.body.appendChild(notif);
+
+    setTimeout(() => {
+      notif.classList.add('quickvis-notification-show');
+    }, 10);
+
+    setTimeout(() => {
+      notif.classList.remove('quickvis-notification-show');
+      setTimeout(() => notif.remove(), 300);
+    }, 4000);
+  }
+
+  function createToggleButton(repoName, isPrivate) {
+    const button = document.createElement('button');
+    button.className = 'quickvis-toggle-btn';
+    button.dataset.repo = repoName;
+    button.dataset.private = isPrivate;
+    button.textContent = 'Change Visibility';
+    
+    button.addEventListener('click', handleToggleClick);
+    return button;
+  }
+
+  async function handleToggleClick(event) {
+    const btn = event.currentTarget;
+    
+    if (!isLoggedIn) {
+      showModal();
+      return;
+    }
+
+    const repoName = btn.dataset.repo;
+    const isPrivate = btn.dataset.private === 'true';
+    const newVisibility = !isPrivate;
+
+    try {
+      btn.disabled = true;
+      btn.textContent = 'Processing...';
+
+      const response = await fetch(`https://api.github.com/repos/${repoName}`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Accept': 'application/vnd.github.v3+json',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ private: newVisibility })
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to update visibility');
+      }
+
+      const updatedRepo = await response.json();
+      
+      btn.dataset.private = updatedRepo.private;
+      btn.textContent = 'Change Visibility';
+      btn.disabled = false;
+
+      const repoItem = btn.closest('li');
+      const container = repoItem || document;
+      updateVisibilityBadge(container, updatedRepo.private);
+
+      showNotification(
+        `${repoName} is now ${updatedRepo.private ? 'private' : 'public'}!`,
+        'success'
+      );
+
+    } catch (error) {
+      showNotification('Error: ' + error.message, 'error');
+      
+      btn.textContent = 'Change Visibility';
+      btn.disabled = false;
+    }
+  }
+
+  function updateVisibilityBadge(container, isPrivate) {
+    let badge = container.querySelector('[data-test-selector="label-private"]');
+    if (!badge) {
+      badge = container.querySelector('[data-test-selector="label-public"]');
+    }
+    if (!badge) {
+      badge = container.querySelector('span.Label');
+    }
+    if (!badge) {
+      const allSpans = container.querySelectorAll('span');
+      for (const span of allSpans) {
+        if (span.textContent.trim() === 'Private' || span.textContent.trim() === 'Public') {
+          badge = span;
+          break;
+        }
+      }
+    }
+    
+    if (badge) {
+      badge.textContent = isPrivate ? 'Private' : 'Public';
+      badge.setAttribute('data-test-selector', isPrivate ? 'label-private' : 'label-public');
+      
+      badge.style.transition = 'all 0.3s ease';
+      badge.style.backgroundColor = isPrivate ? '#fff8c5' : '#dafbe1';
+      badge.style.transform = 'scale(1.15)';
+      
+      setTimeout(() => {
+        badge.style.transform = 'scale(1)';
+      }, 300);
+    } else {
+      setTimeout(() => {
+        if (confirm('Visibility changed successfully! Reload page to see changes?')) {
+          location.reload();
+        }
+      }, 1000);
+    }
+  }
+
+  function updateAllButtons() {
+    document.querySelectorAll('.quickvis-toggle-btn').forEach(btn => {
+      btn.disabled = false;
+    });
+  }
+
+  function addToggleButtons() {
+    let repoItems = document.querySelectorAll('li[itemprop="owns"]');
+    
+    if (repoItems.length === 0) {
+      repoItems = document.querySelectorAll('#user-repositories-list li');
+    }
+    
+    repoItems.forEach((item) => {
+      if (item.querySelector('.quickvis-toggle-btn')) {
+        return;
+      }
+
+      let repoLink = item.querySelector('a[itemprop="name codeRepository"]');
+      if (!repoLink) {
+        repoLink = item.querySelector('a[href*="/"][href*="?tab=repositories"]')?.previousElementSibling;
+      }
+      if (!repoLink) {
+        repoLink = item.querySelector('h3 a');
+      }
+      
+      if (!repoLink) return;
+
+      const repoName = repoLink.getAttribute('href').substring(1).replace('?tab=repositories', '');
+      
+      let badge = item.querySelector('[data-test-selector="label-private"], [data-test-selector="label-public"]');
+      if (!badge) {
+        badge = item.querySelector('span.Label');
+      }
+      
+      const isPrivate = badge ? badge.textContent.trim() === 'Private' : false;
+      const toggleBtn = createToggleButton(repoName, isPrivate);
+      
+      if (badge && badge.parentElement) {
+        badge.parentElement.appendChild(toggleBtn);
+      } else {
+        const repoHeader = item.querySelector('h3');
+        if (repoHeader) {
+          repoHeader.appendChild(toggleBtn);
+        } else {
+          item.appendChild(toggleBtn);
+        }
+      }
+    });
+  }
+
+  function addSingleRepoButton() {
+    if (document.querySelector('.quickvis-toggle-btn')) {
+      return;
+    }
+
+
+    const pathMatch = window.location.pathname.match(/^\/([^\/]+)\/([^\/]+)/);
+    if (!pathMatch) return;
+    
+    const repoName = `${pathMatch[1]}/${pathMatch[2]}`;
+
+    let badge = document.querySelector('[data-test-selector="label-private"], [data-test-selector="label-public"]');
+    if (!badge) {
+      badge = document.querySelector('span.Label');
+    }
+    
+    if (!badge) return;
+
+    const isPrivate = badge.textContent.trim() === 'Private';
+    const toggleBtn = createToggleButton(repoName, isPrivate);
+    
+    if (badge.parentElement) {
+      badge.parentElement.appendChild(toggleBtn);
+    }
+  }
+
+  let currentlyOwnProfile = false;
+
+  const observer = new MutationObserver((mutations) => {
+    if (currentlyOwnProfile) {
+      addToggleButtons();
+    }
+  });
+
+  async function checkAndAddButtons() {
+    const isOwn = await isOwnProfile();
+    currentlyOwnProfile = isOwn;
+    
+    if (!isOwn) {
+      document.querySelectorAll('.quickvis-toggle-btn').forEach(btn => btn.remove());
+      currentlyOwnProfile = false;
+      return;
+    }
+    
+    if (window.location.search.includes('tab=repositories')) {
+      addToggleButtons();
+    } else if (window.location.pathname.match(/^\/[^\/]+\/[^\/]+$/)) {
+      addSingleRepoButton();
+    }
+  }
+
+
+  await checkAuth();
+  await getCurrentUser();
+  await checkAndAddButtons();
+
+  observer.observe(document.body, {
+    childList: true,
+    subtree: true
+  });
+
+  let lastUrl = location.href;
+  new MutationObserver(async () => {
+    const currentUrl = location.href;
+    if (currentUrl !== lastUrl) {
+      lastUrl = currentUrl;
+      
+      const isRelevantPage = currentUrl.includes('?tab=repositories') || 
+                             currentUrl.match(/github\.com\/[^\/]+\/[^\/]+$/);
+      
+      if (isRelevantPage) {
+        await checkAndAddButtons();
+      } else {
+        document.querySelectorAll('.quickvis-toggle-btn').forEach(btn => btn.remove());
+        currentlyOwnProfile = false;
+      }
+    }
+  }).observe(document, { subtree: true, childList: true });
+})();

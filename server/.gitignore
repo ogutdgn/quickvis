@@ -1,0 +1,13 @@
+# Environment variables - GİZLİ TUTUN!
+.env
+
+# Dependencies
+node_modules/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+.vercel
