@@ -93,6 +93,75 @@
     }
   }
 
+  function createHeaderToggle() {
+    if (document.getElementById('quickvis-header-toggle')) {
+      return;
+    }
+
+    const headerToggle = document.createElement('div');
+    headerToggle.id = 'quickvis-header-toggle';
+    headerToggle.className = 'quickvis-header-toggle';
+    
+    const toggleHTML = `
+      <div class="quickvis-header-content">
+        <span class="quickvis-header-label">QuickVis</span>
+        <button class="quickvis-toggle-switch ${isLoggedIn ? 'active' : ''}" id="quickvis-access-toggle">
+          <span class="quickvis-toggle-slider"></span>
+        </button>
+      </div>
+    `;
+    
+    headerToggle.innerHTML = toggleHTML;
+    
+    const profileNav = document.querySelector('nav[aria-label="User profile"]');
+    const underlineNav = document.querySelector('.UnderlineNav, nav.UnderlineNav');
+    const navList = document.querySelector('.UnderlineNav-body, nav[data-pjax] ul');
+    
+    if (profileNav) {
+      profileNav.appendChild(headerToggle);
+    } else if (underlineNav) {
+      underlineNav.appendChild(headerToggle);
+    } else if (navList) {
+      navList.appendChild(headerToggle);
+    } else {
+      const layoutMain = document.querySelector('[data-pjax-container]');
+      if (layoutMain) {
+        layoutMain.insertBefore(headerToggle, layoutMain.firstChild);
+      }
+    }
+    
+    document.getElementById('quickvis-access-toggle')?.addEventListener('click', handleHeaderToggleClick);
+  }
+
+  function updateHeaderToggle() {
+    const toggle = document.getElementById('quickvis-access-toggle');
+    if (toggle) {
+      if (isLoggedIn) {
+        toggle.classList.add('active');
+      } else {
+        toggle.classList.remove('active');
+      }
+    }
+  }
+
+  async function handleHeaderToggleClick() {
+    if (isLoggedIn) {
+      if (confirm('Do you want to revoke QuickVis access?')) {
+        await chrome.storage.local.remove(['github_token', 'github_user', 'token_timestamp']);
+        accessToken = null;
+        isLoggedIn = false;
+        currentUserLogin = null;
+        
+        updateHeaderToggle();
+        document.querySelectorAll('.quickvis-toggle-btn').forEach(btn => btn.remove());
+        
+        showNotification('Access revoked successfully!', 'info');
+      }
+    } else {
+      showModal();
+    }
+  }
+
   function createModal() {
     const modalHTML = `
       <div id="quickvis-modal" class="quickvis-modal">
@@ -156,7 +225,8 @@
         isLoggedIn = true;
         currentUserLogin = response.user.login;
         
-        updateAllButtons();
+        updateHeaderToggle();
+        await checkAndAddButtons();
         showNotification('Authorized successfully! You can now manage your repositories.', 'success');
       } else {
         showNotification('Authorization failed: ' + response.error, 'error');
@@ -331,7 +401,9 @@
         repoLink = item.querySelector('h3 a');
       }
       
-      if (!repoLink) return;
+      if (!repoLink) {
+        return;
+      }
 
       const repoName = repoLink.getAttribute('href').substring(1).replace('?tab=repositories', '');
       
@@ -391,6 +463,12 @@
   });
 
   async function checkAndAddButtons() {
+    if (!isLoggedIn) {
+      document.querySelectorAll('.quickvis-toggle-btn').forEach(btn => btn.remove());
+      currentlyOwnProfile = false;
+      return;
+    }
+    
     const isOwn = await isOwnProfile();
     currentlyOwnProfile = isOwn;
     
@@ -410,6 +488,13 @@
 
   await checkAuth();
   await getCurrentUser();
+  
+  createHeaderToggle();
+  
+  if (!isLoggedIn) {
+    setTimeout(() => showModal(), 1000);
+  }
+  
   await checkAndAddButtons();
 
   observer.observe(document.body, {
