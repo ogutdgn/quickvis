@@ -8,16 +8,33 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// CORS settings
 app.use(cors({
   origin: function(origin, callback) {
-    // accepts requests from chrome-extension
-    if (!origin || origin.startsWith('chrome-extension://')) {
+    if (!origin) {
       callback(null, true);
+      return;
+    }
+    
+    const allowedExtensionId = process.env.ALLOWED_EXTENSION_ID;
+    
+    if (origin.startsWith('chrome-extension://')) {
+      if (allowedExtensionId && allowedExtensionId.trim().length > 0) {
+        // removes chrome-extension part from origin to sort out extension id
+        const extensionId = origin.replace('chrome-extension://', '');
+        //comapres extension id with allowed id
+        if (extensionId === allowedExtensionId) {
+          callback(null, true);
+        } else {
+          callback(new Error('Unauthorized extension'));
+        }
+      } else {
+        callback(null, true);
+      }
     } else {
       callback(new Error('Not allowed by CORS'));
     }
-  }
+  },
+  credentials: true
 }));
 
 app.use(express.json());
