@@ -125,3 +125,5 @@ app.listen(PORT, () => {
   console.log(`🔒 GitHub OAuth Proxy Server running on port ${PORT}`);
   console.log(`📍 Endpoint: http://localhost:${PORT}/api/github/token`);
 });
+
+module.exports = app;
