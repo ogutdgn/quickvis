@@ -12,3 +12,6 @@ server/node_modules
 
 # Vercel
 .vercel
+
+# Project notes
+project-notes.txt
