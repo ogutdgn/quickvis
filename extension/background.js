@@ -43,7 +43,7 @@ async function handleGitHubLogin() {
     const code = url.searchParams.get('code');
     
     if (!code) {
-      throw new Error('Authorization code alınamadı');
+      throw new Error('Failed to obtain authorization code');
     }
     
     const tokenResponse = await fetch(`${CONFIG.PROXY_SERVER_URL}/api/github/token`, {
@@ -60,7 +60,7 @@ async function handleGitHubLogin() {
     const tokenData = await tokenResponse.json();
     
     if (!tokenData.access_token) {
-      throw new Error('Access token alınamadı');
+      throw new Error('Failed to obtain access token');
     }
     
     const userResponse = await fetch(`${CONFIG.API_BASE}/user`, {
