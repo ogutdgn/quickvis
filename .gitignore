@@ -1,6 +1,9 @@
 # Project notes
 project-notes.txt
 
+# Extension zip file for chrome extension
+quickvis-extension.zip
+
 # Environment variables
 .env
 server/.env
