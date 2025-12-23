@@ -113,20 +113,23 @@
     
     headerToggle.innerHTML = toggleHTML;
     
-    const profileNav = document.querySelector('nav[aria-label="User profile"]');
-    const underlineNav = document.querySelector('.UnderlineNav, nav.UnderlineNav');
-    const navList = document.querySelector('.UnderlineNav-body, nav[data-pjax] ul');
+    // Try to find the search input container
+    const searchInput = document.querySelector('qbsearch-input');
+    const searchContainer = document.querySelector('[data-target="qbsearch-input.inputButtonText"]')?.closest('div');
     
-    if (profileNav) {
-      profileNav.appendChild(headerToggle);
-    } else if (underlineNav) {
-      underlineNav.appendChild(headerToggle);
-    } else if (navList) {
-      navList.appendChild(headerToggle);
+    if (searchInput && searchInput.parentElement) {
+      searchInput.parentElement.insertBefore(headerToggle, searchInput);
+    } else if (searchContainer) {
+      searchContainer.parentElement.insertBefore(headerToggle, searchContainer);
     } else {
-      const layoutMain = document.querySelector('[data-pjax-container]');
-      if (layoutMain) {
-        layoutMain.insertBefore(headerToggle, layoutMain.firstChild);
+      // Fallback: try to insert in the header's action list
+      const actionList = document.querySelector('header .AppHeader-actions');
+      const globalBar = document.querySelector('header .AppHeader-globalBar');
+      
+      if (actionList) {
+        actionList.insertBefore(headerToggle, actionList.firstChild);
+      } else if (globalBar) {
+        globalBar.appendChild(headerToggle);
       }
     }
     
@@ -146,17 +149,7 @@
 
   async function handleHeaderToggleClick() {
     if (isLoggedIn) {
-      if (confirm('Do you want to revoke QuickVis access?')) {
-        await chrome.storage.local.remove(['github_token', 'github_user', 'token_timestamp']);
-        accessToken = null;
-        isLoggedIn = false;
-        currentUserLogin = null;
-        
-        updateHeaderToggle();
-        document.querySelectorAll('.quickvis-toggle-btn').forEach(btn => btn.remove());
-        
-        showNotification('Access revoked successfully!', 'info');
-      }
+      showRevokeModal();
     } else {
       showModal();
     }
@@ -198,6 +191,41 @@
     });
   }
 
+  function createRevokeModal() {
+    const modalHTML = `
+      <div id="quickvis-revoke-modal" class="quickvis-modal">
+        <div class="quickvis-modal-content">
+          <div class="quickvis-modal-left quickvis-modal-left-warning">
+            <div class="quickvis-modal-icon">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+              </svg>
+            </div>
+            <h2>Revoke Access</h2>
+          </div>
+          <div class="quickvis-modal-right">
+            <p>Are you sure you want to revoke QuickVis access? You won't be able to change repository visibility until you grant access again.</p>
+            <div class="quickvis-modal-actions">
+              <button id="quickvis-revoke-cancel" class="quickvis-btn quickvis-btn-secondary">Cancel</button>
+              <button id="quickvis-revoke-confirm" class="quickvis-btn quickvis-btn-danger">Revoke Access</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+    
+    document.getElementById('quickvis-revoke-cancel').addEventListener('click', closeRevokeModal);
+    document.getElementById('quickvis-revoke-confirm').addEventListener('click', handleRevokeConfirm);
+    
+    document.getElementById('quickvis-revoke-modal').addEventListener('click', (e) => {
+      if (e.target.id === 'quickvis-revoke-modal') {
+        closeRevokeModal();
+      }
+    });
+  }
+
   function showModal() {
     let modal = document.getElementById('quickvis-modal');
     if (!modal) {
@@ -212,6 +240,36 @@
     if (modal) {
       modal.style.display = 'none';
     }
+  }
+
+  function showRevokeModal() {
+    let modal = document.getElementById('quickvis-revoke-modal');
+    if (!modal) {
+      createRevokeModal();
+      modal = document.getElementById('quickvis-revoke-modal');
+    }
+    modal.style.display = 'flex';
+  }
+
+  function closeRevokeModal() {
+    const modal = document.getElementById('quickvis-revoke-modal');
+    if (modal) {
+      modal.style.display = 'none';
+    }
+  }
+
+  async function handleRevokeConfirm() {
+    closeRevokeModal();
+    
+    await chrome.storage.local.remove(['github_token', 'github_user', 'token_timestamp']);
+    accessToken = null;
+    isLoggedIn = false;
+    currentUserLogin = null;
+    
+    updateHeaderToggle();
+    updateAllButtons();
+    
+    showNotification('Access revoked successfully!', 'info');
   }
 
   async function handleGrantAccess() {
@@ -275,6 +333,9 @@
   function createToggleButton(repoName, isPrivate) {
     const button = document.createElement('button');
     button.className = 'quickvis-toggle-btn';
+    if (!isLoggedIn) {
+      button.classList.add('quickvis-toggle-btn-inactive');
+    }
     button.dataset.repo = repoName;
     button.dataset.private = isPrivate;
     button.textContent = 'Change Visibility';
@@ -377,7 +438,13 @@
 
   function updateAllButtons() {
     document.querySelectorAll('.quickvis-toggle-btn').forEach(btn => {
-      btn.disabled = false;
+      if (isLoggedIn) {
+        btn.classList.remove('quickvis-toggle-btn-inactive');
+        btn.disabled = false;
+      } else {
+        btn.classList.add('quickvis-toggle-btn-inactive');
+        btn.disabled = false;
+      }
     });
   }
 
@@ -463,12 +530,6 @@
   });
 
   async function checkAndAddButtons() {
-    if (!isLoggedIn) {
-      document.querySelectorAll('.quickvis-toggle-btn').forEach(btn => btn.remove());
-      currentlyOwnProfile = false;
-      return;
-    }
-    
     const isOwn = await isOwnProfile();
     currentlyOwnProfile = isOwn;
     
@@ -483,6 +544,8 @@
     } else if (window.location.pathname.match(/^\/[^\/]+\/[^\/]+$/)) {
       addSingleRepoButton();
     }
+    
+    updateAllButtons();
   }
 
 
