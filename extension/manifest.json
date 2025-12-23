@@ -15,7 +15,7 @@
   "host_permissions": [
     "https://github.com/*",
     "https://api.github.com/*",
-    "https://quickvis-oauth-proxy-h4gb343t1-dogans-projects-2fe10410.vercel.app/*"
+    "https://quickvis-oauth-proxy-dqjzc9pdh-dogans-projects-2fe10410.vercel.app/*"
   ],
   "background": {
     "service_worker": "background.js",
