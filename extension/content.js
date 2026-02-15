@@ -3,11 +3,11 @@
   let isLoggedIn = false;
   let currentUserLogin = null;
   
-  const isRepoListPage = window.location.href.match(/github\.com\/[^\/]+\?tab=repositories/);
-  const isSingleRepoPage = window.location.pathname.match(/^\/[^\/]+\/[^\/]+$/);
-  
-  if (!isRepoListPage && !isSingleRepoPage) {
-    return;
+  function isRelevantPage(url) {
+    const href = url || window.location.href;
+    const pathname = new URL(href, window.location.origin).pathname;
+    return href.match(/github\.com\/[^\/]+\?tab=repositories/) ||
+           pathname.match(/^\/[^\/]+\/[^\/]+$/);
   }
 
   async function getCurrentUser() {
@@ -330,6 +330,15 @@
     }, 4000);
   }
 
+  function isDarkMode() {
+    const html = document.documentElement;
+    const colorMode = html.getAttribute('data-color-mode');
+    if (colorMode === 'dark') return true;
+    if (colorMode === 'light') return false;
+    // auto mode — check system preference
+    return window.matchMedia('(prefers-color-scheme: dark)').matches;
+  }
+
   function createToggleButton(repoName, isPrivate) {
     const button = document.createElement('button');
     button.className = 'quickvis-toggle-btn';
@@ -339,6 +348,17 @@
     button.dataset.repo = repoName;
     button.dataset.private = isPrivate;
     button.textContent = 'Change Visibility';
+    
+    button.addEventListener('mouseenter', () => {
+      button.style.background = 'transparent';
+      button.style.borderColor = '#7c3aed';
+      button.style.color = '#7c3aed';
+    });
+    button.addEventListener('mouseleave', () => {
+      button.style.background = '';
+      button.style.borderColor = '';
+      button.style.color = '';
+    });
     
     button.addEventListener('click', handleToggleClick);
     return button;
@@ -554,16 +574,17 @@
   
   createHeaderToggle();
   
-  if (!isLoggedIn) {
+  if (!isLoggedIn && isRelevantPage()) {
     setTimeout(() => showModal(), 1000);
   }
   
-  await checkAndAddButtons();
-
-  observer.observe(document.body, {
-    childList: true,
-    subtree: true
-  });
+  if (isRelevantPage()) {
+    await checkAndAddButtons();
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true
+    });
+  }
 
   let lastUrl = location.href;
   new MutationObserver(async () => {
@@ -571,11 +592,14 @@
     if (currentUrl !== lastUrl) {
       lastUrl = currentUrl;
       
-      const isRelevantPage = currentUrl.includes('?tab=repositories') || 
-                             currentUrl.match(/github\.com\/[^\/]+\/[^\/]+$/);
-      
-      if (isRelevantPage) {
+      if (isRelevantPage(currentUrl)) {
+        // Small delay to let GitHub finish rendering the new page
+        await new Promise(r => setTimeout(r, 500));
         await checkAndAddButtons();
+        observer.observe(document.body, {
+          childList: true,
+          subtree: true
+        });
       } else {
         document.querySelectorAll('.quickvis-toggle-btn').forEach(btn => btn.remove());
         currentlyOwnProfile = false;
