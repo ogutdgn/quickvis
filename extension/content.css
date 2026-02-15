@@ -19,9 +19,6 @@
 }
 
 .quickvis-toggle-btn:hover {
-  background: transparent;
-  color: white;
-  border-color: #7c3aed;
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(124, 58, 237, 0.3);
 }
