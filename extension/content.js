@@ -98,40 +98,30 @@
       return;
     }
 
-    const headerToggle = document.createElement('div');
-    headerToggle.id = 'quickvis-header-toggle';
-    headerToggle.className = 'quickvis-header-toggle';
-    
-    const toggleHTML = `
-      <div class="quickvis-header-content">
-        <span class="quickvis-header-label">QuickVis</span>
-        <button class="quickvis-toggle-switch ${isLoggedIn ? 'active' : ''}" id="quickvis-access-toggle">
-          <span class="quickvis-toggle-slider"></span>
-        </button>
+    // Find the user profile nav bar (Overview, Repositories, Projects, etc.)
+    const nav = document.querySelector('nav[aria-label="User"]');
+    if (!nav) return;
+
+    // Make the nav a flex container so we can push toggle to the right
+    nav.style.display = 'flex';
+    nav.style.alignItems = 'center';
+
+    const toggle = document.createElement('div');
+    toggle.id = 'quickvis-header-toggle';
+    toggle.style.marginLeft = 'auto';
+    toggle.style.flexShrink = '0';
+    toggle.innerHTML = `
+      <div class="quickvis-header-toggle">
+        <div class="quickvis-header-content">
+          <span class="quickvis-header-label">QuickVis</span>
+          <button class="quickvis-toggle-switch ${isLoggedIn ? 'active' : ''}" id="quickvis-access-toggle">
+            <span class="quickvis-toggle-slider"></span>
+          </button>
+        </div>
       </div>
     `;
-    
-    headerToggle.innerHTML = toggleHTML;
-    
-    // Try to find the search input container
-    const searchInput = document.querySelector('qbsearch-input');
-    const searchContainer = document.querySelector('[data-target="qbsearch-input.inputButtonText"]')?.closest('div');
-    
-    if (searchInput && searchInput.parentElement) {
-      searchInput.parentElement.insertBefore(headerToggle, searchInput);
-    } else if (searchContainer) {
-      searchContainer.parentElement.insertBefore(headerToggle, searchContainer);
-    } else {
-      // Fallback: try to insert in the header's action list
-      const actionList = document.querySelector('header .AppHeader-actions');
-      const globalBar = document.querySelector('header .AppHeader-globalBar');
-      
-      if (actionList) {
-        actionList.insertBefore(headerToggle, actionList.firstChild);
-      } else if (globalBar) {
-        globalBar.appendChild(headerToggle);
-      }
-    }
+
+    nav.appendChild(toggle);
     
     document.getElementById('quickvis-access-toggle')?.addEventListener('click', handleHeaderToggleClick);
   }
