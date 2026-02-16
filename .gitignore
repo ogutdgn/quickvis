@@ -1,8 +1,12 @@
 # Project notes
 project-notes.txt
 
-# Extension zip files for chrome extension
-QuickVis-v*.zip
+# Extension zip files in root (for local testing)
+/QuickVis-v*.zip
+/quickvis-v*.zip
+
+# But keep versions directory tracked
+!versions/
 
 # Environment variables
 .env
