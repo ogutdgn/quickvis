@@ -15,7 +15,7 @@
   "host_permissions": [
     "https://github.com/*",
     "https://api.github.com/*",
-    "https://quickvis-oauth-proxy.vercel.app/*"
+    "http://localhost:3000/*"
   ],
   "background": {
     "service_worker": "background.js",
