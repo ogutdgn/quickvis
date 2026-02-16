@@ -1,4 +1,3 @@
-// test for version bump
 (async function() {
   let accessToken = null;
   let isLoggedIn = false;
