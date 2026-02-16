@@ -534,6 +534,11 @@
   let currentlyOwnProfile = false;
 
   const observer = new MutationObserver((mutations) => {
+    // Always ensure header toggle exists on any DOM change
+    createHeaderToggle();
+    updateHeaderToggle();
+    
+    // Add repo buttons only on own profile pages
     if (currentlyOwnProfile) {
       addToggleButtons();
     }
@@ -570,11 +575,13 @@
   
   if (isRelevantPage()) {
     await checkAndAddButtons();
-    observer.observe(document.body, {
-      childList: true,
-      subtree: true
-    });
   }
+  
+  // Start observer on ALL GitHub pages to keep header toggle persistent
+  observer.observe(document.body, {
+    childList: true,
+    subtree: true
+  });
 
   let lastUrl = location.href;
   new MutationObserver(async () => {
@@ -586,10 +593,6 @@
         // Small delay to let GitHub finish rendering the new page
         await new Promise(r => setTimeout(r, 500));
         await checkAndAddButtons();
-        observer.observe(document.body, {
-          childList: true,
-          subtree: true
-        });
       } else {
         document.querySelectorAll('.quickvis-toggle-btn').forEach(btn => btn.remove());
         currentlyOwnProfile = false;
