@@ -1,41 +1,41 @@
 {
-  "manifest_version": 3,
-  "name": "QuickVis",
-  "version": "1.1.2",
-  "description": "Quickly change your own GitHub repositories between public and private using secure OAuth authentication.",
-  "icons": {
-    "16": "icon16.png",
-    "48": "icon48.png",
-    "128": "icon128.png"
-  },
-  "permissions": [
-    "storage",
-    "identity"
-  ],
-  "host_permissions": [
-    "https://github.com/*",
-    "https://api.github.com/*",
-    "http://localhost:3000/*"
-  ],
-  "background": {
-    "service_worker": "background.js",
-    "type": "module"
-  },
-  "content_scripts": [
-    {
-      "matches": [
-        "https://github.com/*"
-      ],
-      "js": [
-        "content.js"
-      ],
-      "css": [
-        "content.css"
-      ],
-      "run_at": "document_end"
-    }
-  ],
-  "content_security_policy": {
-    "extension_pages": "script-src 'self'; object-src 'self'"
-  }
+    "manifest_version":  3,
+    "name":  "QuickVis",
+    "version":  "1.1.4",
+    "description":  "Quickly change your own GitHub repositories between public and private using secure OAuth authentication.",
+    "icons":  {
+                  "16":  "icon16.png",
+                  "48":  "icon48.png",
+                  "128":  "icon128.png"
+              },
+    "permissions":  [
+                        "storage",
+                        "identity"
+                    ],
+    "host_permissions":  [
+                             "https://github.com/*",
+                             "https://api.github.com/*",
+                             "http://localhost:3000/*"
+                         ],
+    "background":  {
+                       "service_worker":  "background.js",
+                       "type":  "module"
+                   },
+    "content_scripts":  [
+                            {
+                                "matches":  [
+                                                "https://github.com/*"
+                                            ],
+                                "js":  [
+                                           "content.js"
+                                       ],
+                                "css":  [
+                                            "content.css"
+                                        ],
+                                "run_at":  "document_end"
+                            }
+                        ],
+    "content_security_policy":  {
+                                    "extension_pages":  "script-src \u0027self\u0027; object-src \u0027self\u0027"
+                                }
 }
