@@ -32,6 +32,9 @@ async function checkTokenExpiry() {
 async function handleGitHubLogin() {
   try {
     const redirectURL = chrome.identity.getRedirectURL();
+    // → "https://[extension-id].chromiumapp.org/"
+
+    // ! getting authorization code from GitHub
     const authURL = `${CONFIG.AUTH_URL}?client_id=${CONFIG.CLIENT_ID}&scope=${encodeURIComponent(CONFIG.SCOPES)}&redirect_uri=${encodeURIComponent(redirectURL)}`;
     
     const responseUrl = await chrome.identity.launchWebAuthFlow({
@@ -46,6 +49,7 @@ async function handleGitHubLogin() {
       throw new Error('Failed to obtain authorization code');
     }
     
+    // ! sending authorization code to proxy server to get access token
     const tokenResponse = await fetch(`${CONFIG.PROXY_SERVER_URL}/api/github/token`, {
       method: 'POST',
       headers: {
@@ -57,12 +61,14 @@ async function handleGitHubLogin() {
       })
     });
     
+    // ! getting access token from proxy server response
     const tokenData = await tokenResponse.json();
     
     if (!tokenData.access_token) {
       throw new Error('Failed to obtain access token');
     }
     
+    // ! fetching user data from GitHub API using access token
     const userResponse = await fetch(`${CONFIG.API_BASE}/user`, {
       headers: {
         'Authorization': `Bearer ${tokenData.access_token}`,
@@ -72,6 +78,7 @@ async function handleGitHubLogin() {
     
     const userData = await userResponse.json();
     
+    // ! storing access token and user data in chrome storage
     await chrome.storage.local.set({
       github_token: tokenData.access_token,
       github_user: userData,

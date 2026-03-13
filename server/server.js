@@ -8,6 +8,7 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// ! CORS configuration to allow requests from quickvis extension only
 app.use(cors({
   origin: function(origin, callback) {
     if (!origin) {
@@ -43,8 +44,8 @@ app.use(express.json());
 app.use(morgan('combined'));
 
 // Rate limiting for token exchange endpoint
-const windowMs = parseInt(process.env.RATE_LIMIT_WINDOW_MS || '60000', 10); // default: 60s
-const max = parseInt(process.env.RATE_LIMIT_MAX || '60', 10); // default: 60 reqs per window
+const windowMs = parseInt(process.env.RATE_LIMIT_WINDOW_MS || '60000', 10); 
+const max = parseInt(process.env.RATE_LIMIT_MAX || '60', 10); 
 const tokenLimiter = rateLimit({
   windowMs,
   max,
@@ -67,23 +68,23 @@ function isValidRedirectUri(redirectUri) {
   }
 }
 
-// endpoint to check server status
+// ? simple endpoint to check if the server is running
 app.get('/', (req, res) => {
   res.json({ status: 'GitHub OAuth Proxy Server Running' });
 });
 
-
+// ! endpoint for exchanging authorization code for access token
+// ! works after the extension sends authorization code to this endpoint
 app.post('/api/github/token', tokenLimiter, async (req, res) => {
   try {
-    // gets authorization code and redirect_uri from request that extension sent
+    // ! gets authorization code and redirect_uri from request that extension sent
     const { code, redirect_uri } = req.body;
 
-    // if authorization code does not exist gives error
     if (!code) {
       return res.status(400).json({ error: 'Authorization code is required' });
     }
 
-    // validate redirect_uri
+    // ? validating redirect_uri to make sure it is from the extension
     if (!redirect_uri) {
       return res.status(400).json({ error: 'redirect_uri is required' });
     }
@@ -91,14 +92,14 @@ app.post('/api/github/token', tokenLimiter, async (req, res) => {
       return res.status(400).json({ error: 'Invalid redirect_uri' });
     }
 
-    // sends request to GitHub for the access token
+    // ! sending auth-code / client_id / client_secret / redirect_uri
+    // ! to GitHub to get access token
     const response = await fetch('https://github.com/login/oauth/access_token', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json'
       },
-      // sends client_id, client_secret, authorization code and redirect_uri
       body: JSON.stringify({
         client_id: process.env.GITHUB_CLIENT_ID,
         client_secret: process.env.GITHUB_CLIENT_SECRET,
