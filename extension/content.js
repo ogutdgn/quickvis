@@ -1,68 +1,30 @@
-(async function () {
+(async function() {
   let accessToken = null;
   let isLoggedIn = false;
   let currentUserLogin = null;
-
-  // ! checks if the current page is relevant for toggle buttons
+  
   function isRelevantPage(url) {
     const href = url || window.location.href;
     const pathname = new URL(href, window.location.origin).pathname;
-    return (
-      href.match(/github\.com\/[^\/]+\?tab=repositories/) ||
-      pathname.match(/^\/[^\/]+\/[^\/]+$/)
-    );
-  }
-
-  async function checkAuth() {
-    // requests to background.js to check if token exists and is valid
-    const tokenCheck = await chrome.runtime.sendMessage({
-      action: "checkToken",
-    });
-
-    // if token is invalid, clear local storage and reset state
-    if (!tokenCheck.valid) {
-      accessToken = null;
-      isLoggedIn = false;
-      return false;
-    }
-
-    // check if the token is still valid by making a request to GitHub API
-    // validating because user might revoked the token from GitHub settings
-    const isValid = await validateToken(tokenCheck.token);
-
-    if (isValid) {
-      accessToken = tokenCheck.token;
-      isLoggedIn = true;
-    } else {
-      // remove token and user data from local storage if token is invalid
-      await chrome.storage.local.remove([
-        "github_token",
-        "github_user",
-        "token_timestamp",
-      ]);
-      accessToken = null;
-      isLoggedIn = false;
-    }
-
-    return isLoggedIn;
+    return href.match(/github\.com\/[^\/]+\?tab=repositories/) ||
+           pathname.match(/^\/[^\/]+\/[^\/]+$/) ||
+           pathname.match(/^\/[^\/]+\/?$/);
   }
 
   async function getCurrentUser() {
-    // if current user already exists in storage, use it
-    const result = await chrome.storage.local.get(["github_user"]);
+    const result = await chrome.storage.local.get(['github_user']);
     if (result.github_user && result.github_user.login) {
       currentUserLogin = result.github_user.login;
       return currentUserLogin;
     }
-
-    // if access token exists, fetch current user from GitHub API
+    
     if (accessToken) {
       try {
-        const response = await fetch("https://api.github.com/user", {
+        const response = await fetch('https://api.github.com/user', {
           headers: {
-            Authorization: `Bearer ${accessToken}`,
-            Accept: "application/vnd.github.v3+json",
-          },
+            'Authorization': `Bearer ${accessToken}`,
+            'Accept': 'application/vnd.github.v3+json'
+          }
         });
         if (response.ok) {
           const userData = await response.json();
@@ -71,51 +33,69 @@
         }
       } catch (error) {}
     }
-
+    
     return null;
   }
 
-  // ! checks if the current profile page belongs to the logged-in user
   async function isOwnProfile() {
     if (!currentUserLogin) {
       await getCurrentUser();
     }
-
+    
     if (!currentUserLogin) {
       return false;
     }
-
+    
     const urlMatch = window.location.pathname.match(/^\/([^\/]+)/);
     if (!urlMatch || !urlMatch[1]) {
       return false;
     }
-
+    
     const profileUsername = urlMatch[1];
-    const isOwn =
-      profileUsername.toLowerCase() === currentUserLogin.toLowerCase();
-
+    const isOwn = profileUsername.toLowerCase() === currentUserLogin.toLowerCase();
+    
     return isOwn;
   }
 
-  // ! requests http GET to GitHub API to validate the token
+  async function checkAuth() {
+    const tokenCheck = await chrome.runtime.sendMessage({ action: 'checkToken' });
+    
+    if (!tokenCheck.valid) {
+      accessToken = null;
+      isLoggedIn = false;
+      return false;
+    }
+    
+    const isValid = await validateToken(tokenCheck.token);
+    if (isValid) {
+      accessToken = tokenCheck.token;
+      isLoggedIn = true;
+    } else {
+      await chrome.storage.local.remove(['github_token', 'github_user', 'token_timestamp']);
+      accessToken = null;
+      isLoggedIn = false;
+    }
+    
+    return isLoggedIn;
+  }
+
   async function validateToken(token) {
     try {
-      const response = await fetch("https://api.github.com/user", {
+      const response = await fetch('https://api.github.com/user', {
         headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: "application/vnd.github.v3+json",
-        },
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/vnd.github.v3+json'
+        }
       });
-
+      
       return response.ok;
     } catch (error) {
       return false;
     }
   }
 
-  // creates header toggle in UI
   function createHeaderToggle() {
-    if (document.getElementById("quickvis-header-toggle")) {
+    if (document.getElementById('quickvis-header-toggle')) {
       return;
     }
 
@@ -124,18 +104,18 @@
     if (!nav) return;
 
     // Make the nav a flex container so we can push toggle to the right
-    nav.style.display = "flex";
-    nav.style.alignItems = "center";
+    nav.style.display = 'flex';
+    nav.style.alignItems = 'center';
 
-    const toggle = document.createElement("div");
-    toggle.id = "quickvis-header-toggle";
-    toggle.style.marginLeft = "auto";
-    toggle.style.flexShrink = "0";
+    const toggle = document.createElement('div');
+    toggle.id = 'quickvis-header-toggle';
+    toggle.style.marginLeft = 'auto';
+    toggle.style.flexShrink = '0';
     toggle.innerHTML = `
       <div class="quickvis-header-toggle">
         <div class="quickvis-header-content">
           <span class="quickvis-header-label">QuickVis</span>
-          <button class="quickvis-toggle-switch ${isLoggedIn ? "active" : ""}" id="quickvis-access-toggle">
+          <button class="quickvis-toggle-switch ${isLoggedIn ? 'active' : ''}" id="quickvis-access-toggle">
             <span class="quickvis-toggle-slider"></span>
           </button>
         </div>
@@ -143,25 +123,21 @@
     `;
 
     nav.appendChild(toggle);
-
-    document
-      .getElementById("quickvis-access-toggle")
-      ?.addEventListener("click", handleHeaderToggleClick);
+    
+    document.getElementById('quickvis-access-toggle')?.addEventListener('click', handleHeaderToggleClick);
   }
 
-  //  UI update function for header toggle
   function updateHeaderToggle() {
-    const toggle = document.getElementById("quickvis-access-toggle");
+    const toggle = document.getElementById('quickvis-access-toggle');
     if (toggle) {
       if (isLoggedIn) {
-        toggle.classList.add("active");
+        toggle.classList.add('active');
       } else {
-        toggle.classList.remove("active");
+        toggle.classList.remove('active');
       }
     }
   }
 
-  //  toogle function for header toggle
   async function handleHeaderToggleClick() {
     if (isLoggedIn) {
       showRevokeModal();
@@ -170,7 +146,6 @@
     }
   }
 
-  // ! pop-up modals for granting and revoking access
   function createModal() {
     const modalHTML = `
       <div id="quickvis-modal" class="quickvis-modal">
@@ -194,18 +169,14 @@
         </div>
       </div>
     `;
-
-    document.body.insertAdjacentHTML("beforeend", modalHTML);
-
-    document
-      .getElementById("quickvis-cancel")
-      .addEventListener("click", closeModal);
-    document
-      .getElementById("quickvis-grant")
-      .addEventListener("click", handleGrantAccess);
-
-    document.getElementById("quickvis-modal").addEventListener("click", (e) => {
-      if (e.target.id === "quickvis-modal") {
+    
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+    
+    document.getElementById('quickvis-cancel').addEventListener('click', closeModal);
+    document.getElementById('quickvis-grant').addEventListener('click', handleGrantAccess);
+    
+    document.getElementById('quickvis-modal').addEventListener('click', (e) => {
+      if (e.target.id === 'quickvis-modal') {
         closeModal();
       }
     });
@@ -233,339 +204,299 @@
         </div>
       </div>
     `;
-
-    document.body.insertAdjacentHTML("beforeend", modalHTML);
-
-    document
-      .getElementById("quickvis-revoke-cancel")
-      .addEventListener("click", closeRevokeModal);
-    document
-      .getElementById("quickvis-revoke-confirm")
-      .addEventListener("click", handleRevokeConfirm);
-
-    document
-      .getElementById("quickvis-revoke-modal")
-      .addEventListener("click", (e) => {
-        if (e.target.id === "quickvis-revoke-modal") {
-          closeRevokeModal();
-        }
-      });
+    
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+    
+    document.getElementById('quickvis-revoke-cancel').addEventListener('click', closeRevokeModal);
+    document.getElementById('quickvis-revoke-confirm').addEventListener('click', handleRevokeConfirm);
+    
+    document.getElementById('quickvis-revoke-modal').addEventListener('click', (e) => {
+      if (e.target.id === 'quickvis-revoke-modal') {
+        closeRevokeModal();
+      }
+    });
   }
 
   function showModal() {
-    let modal = document.getElementById("quickvis-modal");
+    let modal = document.getElementById('quickvis-modal');
     if (!modal) {
       createModal();
-      modal = document.getElementById("quickvis-modal");
+      modal = document.getElementById('quickvis-modal');
     }
-    modal.style.display = "flex";
+    modal.style.display = 'flex';
   }
 
   function closeModal() {
-    const modal = document.getElementById("quickvis-modal");
+    const modal = document.getElementById('quickvis-modal');
     if (modal) {
-      modal.style.display = "none";
+      modal.style.display = 'none';
     }
   }
 
   function showRevokeModal() {
-    let modal = document.getElementById("quickvis-revoke-modal");
+    let modal = document.getElementById('quickvis-revoke-modal');
     if (!modal) {
       createRevokeModal();
-      modal = document.getElementById("quickvis-revoke-modal");
+      modal = document.getElementById('quickvis-revoke-modal');
     }
-    modal.style.display = "flex";
+    modal.style.display = 'flex';
   }
 
   function closeRevokeModal() {
-    const modal = document.getElementById("quickvis-revoke-modal");
+    const modal = document.getElementById('quickvis-revoke-modal');
     if (modal) {
-      modal.style.display = "none";
+      modal.style.display = 'none';
     }
   }
-  // ! pop-up modals for granting and revoking access
 
-  // ? functions to handle granting and revoking access
   async function handleRevokeConfirm() {
     closeRevokeModal();
-
-    await chrome.storage.local.remove([
-      "github_token",
-      "github_user",
-      "token_timestamp",
-    ]);
+    
+    await chrome.storage.local.remove(['github_token', 'github_user', 'token_timestamp']);
     accessToken = null;
     isLoggedIn = false;
     currentUserLogin = null;
-
+    
     updateHeaderToggle();
     updateAllButtons();
-
-    showNotification("Access revoked successfully!", "info");
+    
+    showNotification('Access revoked successfully!', 'info');
   }
 
   async function handleGrantAccess() {
     closeModal();
-
+    
     try {
-      const response = await chrome.runtime.sendMessage({ action: "login" });
-
+      const response = await chrome.runtime.sendMessage({ action: 'login' });
+      
       if (response.success) {
         accessToken = response.token;
         isLoggedIn = true;
         currentUserLogin = response.user.login;
-
+        
         updateHeaderToggle();
         await checkAndAddButtons();
-        showNotification(
-          "Authorized successfully! You can now manage your repositories.",
-          "success",
-        );
+        showNotification('Authorized successfully! You can now manage your repositories.', 'success');
       } else {
-        showNotification("Authorization failed: " + response.error, "error");
+        showNotification('Authorization failed: ' + response.error, 'error');
       }
     } catch (error) {
-      showNotification("Authorization error: " + error.message, "error");
+      showNotification('Authorization error: ' + error.message, 'error');
     }
   }
-  // ? functions to handle granting and revoking access
 
-  // function to show notifications
-  function showNotification(message, type = "info") {
-    const existingNotif = document.getElementById("quickvis-notification");
+  function showNotification(message, type = 'info') {
+    const existingNotif = document.getElementById('quickvis-notification');
     if (existingNotif) {
       existingNotif.remove();
     }
 
+
     const icons = {
-      success:
-        '<svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>',
-      error:
-        '<svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/></svg>',
-      info: '<svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/></svg>',
+      success: '<svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>',
+      error: '<svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/></svg>',
+      info: '<svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/></svg>'
     };
 
-    const notif = document.createElement("div");
-    notif.id = "quickvis-notification";
+    const notif = document.createElement('div');
+    notif.id = 'quickvis-notification';
     notif.className = `quickvis-notification quickvis-notification-${type}`;
-
+    
     notif.innerHTML = `
       <div class="quickvis-notification-icon">
         ${icons[type] || icons.info}
       </div>
       <div class="quickvis-notification-message">${message}</div>
     `;
-
+    
     document.body.appendChild(notif);
 
     setTimeout(() => {
-      notif.classList.add("quickvis-notification-show");
+      notif.classList.add('quickvis-notification-show');
     }, 10);
 
     setTimeout(() => {
-      notif.classList.remove("quickvis-notification-show");
+      notif.classList.remove('quickvis-notification-show');
       setTimeout(() => notif.remove(), 300);
     }, 4000);
   }
 
-  // function for dark/light mode toggle
   function isDarkMode() {
     const html = document.documentElement;
-    const colorMode = html.getAttribute("data-color-mode");
-    if (colorMode === "dark") return true;
-    if (colorMode === "light") return false;
+    const colorMode = html.getAttribute('data-color-mode');
+    if (colorMode === 'dark') return true;
+    if (colorMode === 'light') return false;
     // auto mode — check system preference
-    return window.matchMedia("(prefers-color-scheme: dark)").matches;
+    return window.matchMedia('(prefers-color-scheme: dark)').matches;
   }
 
-  // function to create toggle button for each repo in UI
   function createToggleButton(repoName, isPrivate) {
-    const button = document.createElement("button");
-    button.className = "quickvis-toggle-btn";
+    const button = document.createElement('button');
+    button.className = 'quickvis-toggle-btn';
     if (!isLoggedIn) {
-      button.classList.add("quickvis-toggle-btn-inactive");
+      button.classList.add('quickvis-toggle-btn-inactive');
     }
     button.dataset.repo = repoName;
     button.dataset.private = isPrivate;
-    button.textContent = "Change Visibility";
-
-    button.addEventListener("mouseenter", () => {
-      button.style.background = "transparent";
-      button.style.borderColor = "#7c3aed";
-      button.style.color = "#7c3aed";
+    button.textContent = 'Change Visibility';
+    
+    button.addEventListener('mouseenter', () => {
+      button.style.background = 'transparent';
+      button.style.borderColor = '#7c3aed';
+      button.style.color = '#7c3aed';
     });
-    button.addEventListener("mouseleave", () => {
-      button.style.background = "";
-      button.style.borderColor = "";
-      button.style.color = "";
+    button.addEventListener('mouseleave', () => {
+      button.style.background = '';
+      button.style.borderColor = '';
+      button.style.color = '';
     });
-
-    button.addEventListener("click", handleToggleClick);
+    
+    button.addEventListener('click', handleToggleClick);
     return button;
   }
 
-  // ! function to create patch request to GitHub API to change repo visibility
   async function handleToggleClick(event) {
     const btn = event.currentTarget;
-
+    
     if (!isLoggedIn) {
       showModal();
       return;
     }
 
     const repoName = btn.dataset.repo;
-    const isPrivate = btn.dataset.private === "true";
+    const isPrivate = btn.dataset.private === 'true';
     const newVisibility = !isPrivate;
 
     try {
       btn.disabled = true;
-      btn.textContent = "Processing...";
+      btn.textContent = 'Processing...';
 
       const response = await fetch(`https://api.github.com/repos/${repoName}`, {
-        method: "PATCH",
+        method: 'PATCH',
         headers: {
-          Authorization: `Bearer ${accessToken}`,
-          Accept: "application/vnd.github.v3+json",
-          "Content-Type": "application/json",
+          'Authorization': `Bearer ${accessToken}`,
+          'Accept': 'application/vnd.github.v3+json',
+          'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ private: newVisibility }),
+        body: JSON.stringify({ private: newVisibility })
       });
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.message || "Failed to update visibility");
+        throw new Error(error.message || 'Failed to update visibility');
       }
 
       const updatedRepo = await response.json();
-
+      
       btn.dataset.private = updatedRepo.private;
-      btn.textContent = "Change Visibility";
+      btn.textContent = 'Change Visibility';
       btn.disabled = false;
 
-      const repoItem = btn.closest("li");
+      const repoItem = btn.closest('li');
       const container = repoItem || document;
       updateVisibilityBadge(container, updatedRepo.private);
 
       showNotification(
-        `${repoName} is now ${updatedRepo.private ? "private" : "public"}!`,
-        "success",
+        `${repoName} is now ${updatedRepo.private ? 'private' : 'public'}!`,
+        'success'
       );
-    } catch (error) {
-      showNotification("Error: " + error.message, "error");
 
-      btn.textContent = "Change Visibility";
+    } catch (error) {
+      showNotification('Error: ' + error.message, 'error');
+      
+      btn.textContent = 'Change Visibility';
       btn.disabled = false;
     }
   }
 
-  // changing vis. badge after toggle
   function updateVisibilityBadge(container, isPrivate) {
     let badge = container.querySelector('[data-test-selector="label-private"]');
     if (!badge) {
       badge = container.querySelector('[data-test-selector="label-public"]');
     }
     if (!badge) {
-      badge = container.querySelector("span.Label");
+      badge = container.querySelector('span.Label');
     }
     if (!badge) {
-      const allSpans = container.querySelectorAll("span");
+      const allSpans = container.querySelectorAll('span');
       for (const span of allSpans) {
-        if (
-          span.textContent.trim() === "Private" ||
-          span.textContent.trim() === "Public"
-        ) {
+        if (span.textContent.trim() === 'Private' || span.textContent.trim() === 'Public') {
           badge = span;
           break;
         }
       }
     }
-
+    
     if (badge) {
-      badge.textContent = isPrivate ? "Private" : "Public";
-      badge.setAttribute(
-        "data-test-selector",
-        isPrivate ? "label-private" : "label-public",
-      );
-
-      badge.style.transition = "all 0.3s ease";
-      badge.style.backgroundColor = isPrivate ? "#fff8c5" : "#dafbe1";
-      badge.style.transform = "scale(1.15)";
-
+      badge.textContent = isPrivate ? 'Private' : 'Public';
+      badge.setAttribute('data-test-selector', isPrivate ? 'label-private' : 'label-public');
+      
+      badge.style.transition = 'all 0.3s ease';
+      badge.style.backgroundColor = isPrivate ? '#fff8c5' : '#dafbe1';
+      badge.style.transform = 'scale(1.15)';
+      
       setTimeout(() => {
-        badge.style.transform = "scale(1)";
+        badge.style.transform = 'scale(1)';
       }, 300);
     } else {
       setTimeout(() => {
-        if (
-          confirm(
-            "Visibility changed successfully! Reload page to see changes?",
-          )
-        ) {
+        if (confirm('Visibility changed successfully! Reload page to see changes?')) {
           location.reload();
         }
       }, 1000);
     }
   }
 
-  // update all buttons on the page based on login state
   function updateAllButtons() {
-    document.querySelectorAll(".quickvis-toggle-btn").forEach((btn) => {
+    document.querySelectorAll('.quickvis-toggle-btn').forEach(btn => {
       if (isLoggedIn) {
-        btn.classList.remove("quickvis-toggle-btn-inactive");
+        btn.classList.remove('quickvis-toggle-btn-inactive');
         btn.disabled = false;
       } else {
-        btn.classList.add("quickvis-toggle-btn-inactive");
+        btn.classList.add('quickvis-toggle-btn-inactive');
         btn.disabled = false;
       }
     });
   }
 
-  // function to add toggle buttons to all repos on the profile page
   function addToggleButtons() {
     let repoItems = document.querySelectorAll('li[itemprop="owns"]');
-
+    
     if (repoItems.length === 0) {
-      repoItems = document.querySelectorAll("#user-repositories-list li");
+      repoItems = document.querySelectorAll('#user-repositories-list li');
     }
-
+    
     repoItems.forEach((item) => {
-      if (item.querySelector(".quickvis-toggle-btn")) {
+      if (item.querySelector('.quickvis-toggle-btn')) {
         return;
       }
 
       let repoLink = item.querySelector('a[itemprop="name codeRepository"]');
       if (!repoLink) {
-        repoLink = item.querySelector(
-          'a[href*="/"][href*="?tab=repositories"]',
-        )?.previousElementSibling;
+        repoLink = item.querySelector('a[href*="/"][href*="?tab=repositories"]')?.previousElementSibling;
       }
       if (!repoLink) {
-        repoLink = item.querySelector("h3 a");
+        repoLink = item.querySelector('h3 a');
       }
-
+      
       if (!repoLink) {
         return;
       }
 
-      const repoName = repoLink
-        .getAttribute("href")
-        .substring(1)
-        .replace("?tab=repositories", "");
-
-      let badge = item.querySelector(
-        '[data-test-selector="label-private"], [data-test-selector="label-public"]',
-      );
+      const repoName = repoLink.getAttribute('href').substring(1).replace('?tab=repositories', '');
+      
+      let badge = item.querySelector('[data-test-selector="label-private"], [data-test-selector="label-public"]');
       if (!badge) {
-        badge = item.querySelector("span.Label");
+        badge = item.querySelector('span.Label');
       }
-
-      const isPrivate = badge ? badge.textContent.trim() === "Private" : false;
+      
+      const isPrivate = badge ? badge.textContent.trim() === 'Private' : false;
       const toggleBtn = createToggleButton(repoName, isPrivate);
-
+      
       if (badge && badge.parentElement) {
         badge.parentElement.appendChild(toggleBtn);
       } else {
-        const repoHeader = item.querySelector("h3");
+        const repoHeader = item.querySelector('h3');
         if (repoHeader) {
           repoHeader.appendChild(toggleBtn);
         } else {
@@ -575,32 +506,65 @@
     });
   }
 
-  // function to add toggle button for a single repo page
   function addSingleRepoButton() {
-    if (document.querySelector(".quickvis-toggle-btn")) {
+    if (document.querySelector('.quickvis-toggle-btn')) {
       return;
     }
 
+
     const pathMatch = window.location.pathname.match(/^\/([^\/]+)\/([^\/]+)/);
     if (!pathMatch) return;
-
+    
     const repoName = `${pathMatch[1]}/${pathMatch[2]}`;
 
-    let badge = document.querySelector(
-      '[data-test-selector="label-private"], [data-test-selector="label-public"]',
-    );
+    let badge = document.querySelector('[data-test-selector="label-private"], [data-test-selector="label-public"]');
     if (!badge) {
-      badge = document.querySelector("span.Label");
+      badge = document.querySelector('span.Label');
     }
-
+    
     if (!badge) return;
 
-    const isPrivate = badge.textContent.trim() === "Private";
+    const isPrivate = badge.textContent.trim() === 'Private';
     const toggleBtn = createToggleButton(repoName, isPrivate);
-
+    
     if (badge.parentElement) {
       badge.parentElement.appendChild(toggleBtn);
     }
+  }
+
+  function addPinnedRepoButtons() {
+    const pinnedItems = document.querySelectorAll('.pinned-item-list-item-content');
+
+    pinnedItems.forEach((item) => {
+      if (item.querySelector('.quickvis-toggle-btn')) {
+        return;
+      }
+
+      let repoLink = item.querySelector('a.text-bold');
+      if (!repoLink) {
+        repoLink = item.querySelector('span.repo a');
+      }
+      if (!repoLink) return;
+
+      const repoName = repoLink.getAttribute('href').substring(1);
+      const repoOwner = repoName.split('/')[0];
+      if (!currentUserLogin || repoOwner.toLowerCase() !== currentUserLogin.toLowerCase()) {
+        return;
+      }
+
+      let badge = item.querySelector('[data-test-selector="label-private"], [data-test-selector="label-public"]');
+      if (!badge) {
+        badge = item.querySelector('span.Label');
+      }
+
+      const isPrivate = badge ? badge.textContent.trim() === 'Private' : false;
+      const toggleBtn = createToggleButton(repoName, isPrivate);
+      toggleBtn.classList.add('quickvis-toggle-btn-pinned');
+
+      item.style.position = 'relative';
+      item.style.paddingBottom = '36px';
+      item.appendChild(toggleBtn);
+    });
   }
 
   let currentlyOwnProfile = false;
@@ -609,69 +573,72 @@
     // Always ensure header toggle exists on any DOM change
     createHeaderToggle();
     updateHeaderToggle();
-
+    
     // Add repo buttons only on own profile pages
     if (currentlyOwnProfile) {
-      addToggleButtons();
+      if (window.location.search.includes('tab=repositories')) {
+        addToggleButtons();
+      } else if (window.location.pathname.match(/^\/[^\/]+\/?$/)) {
+        // Overview page - add buttons to pinned repos
+        addPinnedRepoButtons();
+      }
     }
   });
 
-  // adding/removing buttons based on profile ownership
   async function checkAndAddButtons() {
     const isOwn = await isOwnProfile();
     currentlyOwnProfile = isOwn;
-
+    
     if (!isOwn) {
-      document
-        .querySelectorAll(".quickvis-toggle-btn")
-        .forEach((btn) => btn.remove());
+      document.querySelectorAll('.quickvis-toggle-btn').forEach(btn => btn.remove());
       currentlyOwnProfile = false;
       return;
     }
-
-    if (window.location.search.includes("tab=repositories")) {
+    
+    if (window.location.search.includes('tab=repositories')) {
       addToggleButtons();
     } else if (window.location.pathname.match(/^\/[^\/]+\/[^\/]+$/)) {
       addSingleRepoButton();
+    } else if (window.location.pathname.match(/^\/[^\/]+\/?$/)) {
+      // Overview page - add buttons to pinned repos
+      addPinnedRepoButtons();
     }
-
+    
     updateAllButtons();
   }
 
+
   await checkAuth();
   await getCurrentUser();
-
+  
   createHeaderToggle();
-
+  
   if (!isLoggedIn && isRelevantPage()) {
     setTimeout(() => showModal(), 1000);
   }
-
+  
   if (isRelevantPage()) {
     await checkAndAddButtons();
   }
-
-  // observer for all github pages
+  
+  // Start observer on ALL GitHub pages to keep header toggle persistent
   observer.observe(document.body, {
     childList: true,
-    subtree: true,
+    subtree: true
   });
 
   let lastUrl = location.href;
-  // ! for url change detection and adding/removing buttons based on profile ownership
   new MutationObserver(async () => {
     const currentUrl = location.href;
     if (currentUrl !== lastUrl) {
       lastUrl = currentUrl;
-
+      
       if (isRelevantPage(currentUrl)) {
         // Small delay to let GitHub finish rendering the new page
-        await new Promise((r) => setTimeout(r, 500));
+        await new Promise(r => setTimeout(r, 500));
         await checkAndAddButtons();
       } else {
-        document
-          .querySelectorAll(".quickvis-toggle-btn")
-          .forEach((btn) => btn.remove());
+        document.querySelectorAll('.quickvis-toggle-btn').forEach(btn => btn.remove());
         currentlyOwnProfile = false;
       }
     }
