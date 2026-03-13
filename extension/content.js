@@ -7,7 +7,8 @@
     const href = url || window.location.href;
     const pathname = new URL(href, window.location.origin).pathname;
     return href.match(/github\.com\/[^\/]+\?tab=repositories/) ||
-           pathname.match(/^\/[^\/]+\/[^\/]+$/);
+           pathname.match(/^\/[^\/]+\/[^\/]+$/) ||
+           pathname.match(/^\/[^\/]+\/?$/);
   }
 
   async function getCurrentUser() {
@@ -531,6 +532,41 @@
     }
   }
 
+  function addPinnedRepoButtons() {
+    const pinnedItems = document.querySelectorAll('.pinned-item-list-item-content');
+
+    pinnedItems.forEach((item) => {
+      if (item.querySelector('.quickvis-toggle-btn')) {
+        return;
+      }
+
+      let repoLink = item.querySelector('a.text-bold');
+      if (!repoLink) {
+        repoLink = item.querySelector('span.repo a');
+      }
+      if (!repoLink) return;
+
+      const repoName = repoLink.getAttribute('href').substring(1);
+      const repoOwner = repoName.split('/')[0];
+      if (!currentUserLogin || repoOwner.toLowerCase() !== currentUserLogin.toLowerCase()) {
+        return;
+      }
+
+      let badge = item.querySelector('[data-test-selector="label-private"], [data-test-selector="label-public"]');
+      if (!badge) {
+        badge = item.querySelector('span.Label');
+      }
+
+      const isPrivate = badge ? badge.textContent.trim() === 'Private' : false;
+      const toggleBtn = createToggleButton(repoName, isPrivate);
+      toggleBtn.classList.add('quickvis-toggle-btn-pinned');
+
+      item.style.position = 'relative';
+      item.style.paddingBottom = '36px';
+      item.appendChild(toggleBtn);
+    });
+  }
+
   let currentlyOwnProfile = false;
 
   const observer = new MutationObserver((mutations) => {
@@ -540,7 +576,12 @@
     
     // Add repo buttons only on own profile pages
     if (currentlyOwnProfile) {
-      addToggleButtons();
+      if (window.location.search.includes('tab=repositories')) {
+        addToggleButtons();
+      } else if (window.location.pathname.match(/^\/[^\/]+\/?$/)) {
+        // Overview page - add buttons to pinned repos
+        addPinnedRepoButtons();
+      }
     }
   });
 
@@ -558,6 +599,9 @@
       addToggleButtons();
     } else if (window.location.pathname.match(/^\/[^\/]+\/[^\/]+$/)) {
       addSingleRepoButton();
+    } else if (window.location.pathname.match(/^\/[^\/]+\/?$/)) {
+      // Overview page - add buttons to pinned repos
+      addPinnedRepoButtons();
     }
     
     updateAllButtons();
